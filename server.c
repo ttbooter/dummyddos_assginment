@@ -11,6 +11,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <time.h>
+#include <inttypes.h>
+#include <netinet/in.h>
 
 /*********************Global Variables************************/
 int sockfd, newsockfd, portno;
@@ -35,55 +38,13 @@ void *socketthread_handler(void *arg);
 
 //init helpers
 void socket_init(int port);
-
+void error(const char *msg);
+int printRecords(FILE* records);
 /*********************Helper functions************************/
 void error(const char *msg)
 {
     perror(msg);
     exit(1);
-}
-
-//helper to read the file
-char *readAllocLine(FILE * source)
-{
-  char buffer[20];
-  char *line;
-  int multiplier = 1;
-  if (fgets(buffer, sizeof buffer, source) == NULL) return NULL;
-  line = malloc ( sizeof buffer );
-  strncpy(line, buffer, strlen(buffer) + 1);
-  while ( line[strlen(line) - 1] != '\n')
-  {
-    char *tmp;
-    multiplier++;
-    fgets(buffer, sizeof buffer, source);
-    if ((tmp = realloc ( line, sizeof buffer * multiplier )) == NULL)
-    {
-      fprintf(stderr, "ERROR: realloc failed");
-      exit(1);
-    }
-    line = tmp;
-    strncat(line, buffer, strlen(buffer));
-  }
-  return line;
-}
-/**
-* helper to check if the student is authorized to send input
-*/
-int studentAuthorized(FILE* students, char* studentnumber)
-{
-	char *line;
-	int verified = 0;
-	while (line = readAllocLine(students)) 
-        {
-               if(strncmp(line, studentnumber, strlen(studentnumber))==0)
-		{
-			verified = 1;
-			break;
-		}    
-
-	}
-	return verified;        
 }
 
 /**
@@ -111,29 +72,52 @@ int printRecords(FILE* records)
 void *processthread_handler(void *args)
 {
 	int newsockfdd = *(int *)args;
+	char buffer[256], *address;
+	time_t connecttime, disconnecttime;
+	time(&connecttime);
+
+	socklen_t fromlen;
+	struct sockaddr addr;
+	char ipstr[INET6_ADDRSTRLEN];
 	
-	char *buffer;
 	
 	
-	// put it the records file//	
+	// put it the records file //	
 	FILE *fp;
 	
-	//lock for writing
-	//pthread_mutex_lock(&lock);
-	//fp = fopen("conections.txt", "a");
-	//write to file
-	//fprintf(fp, "%s\n",studentnumber);
-	//fclose(fp);
-	//unlock after write
-	//pthread_mutex_unlock(&lock);
+	//reset the buffer for read
+	//bzero(buffer,256);
+	int n = recvfrom(newsockfdd,buffer,sizeof(buffer),0, &addr, &fromlen);
+	if (n < 0) error("ERROR writing to socket");
+
+	printf("%d", n);
+
+	//copy the choice to temp variable
+	address = malloc ( sizeof buffer );			
+	//strncpy(buffer, address, strlen(buffer) + 1);
+
 	// close the connection
 	close(newsockfdd);
+	time(&disconnecttime);
 	
-	//free schoice
-	//free(schoice);
-	//}
-	//free student number
-	//free(studentnumber);
+	char buf[80], buf1[80];
+	strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", localtime(&connecttime));
+	strftime(buf1, sizeof(buf1), "%a %Y-%m-%d %H:%M:%S %Z", localtime(&disconnecttime));
+	
+	struct sockaddr_in *tempaddr = (struct sockaddr_in *)&addr;
+	char ipAddress[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(tempaddr->sin_addr), ipAddress, INET_ADDRSTRLEN);
+
+
+	//lock for writing
+	pthread_mutex_lock(&lock);
+	fp = fopen("conections.txt", "a");
+	//write to file
+	fprintf(fp, "%s \t%s \t%s\n",ipAddress,buf ,buf1);
+	fclose(fp);
+	//unlock after write
+	pthread_mutex_unlock(&lock);
+	
 	//free(buffer);
 	free(args);
 }
@@ -166,7 +150,7 @@ void *socketthread_handler(void *arg)
 		if (newsockfd < 0) 
 	  		error("ERROR on accept");
 	
-		printf("%d \n" , newsockfd);
+		
 
 	  	
 		//process handler or logic handler thread

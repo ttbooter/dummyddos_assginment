@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
 {
 	
 
-	pthread_t pth;	
+	pthread_t socketth;	
 
 	if (argc < 2) {
 	 fprintf(stderr,"ERROR, no port provided\n");
@@ -242,12 +242,9 @@ int main(int argc, char *argv[])
 	socket_init(port);
 	/**************************/
 	
-	//this just to clearout the file it exists at the start of program
-	FILE *fp;
-	fp = fopen("records.txt", "w+");
-	fclose(fp);
-
 	int choice;
+
+	
 
 	/**
 	* main loop that genrates the menu
@@ -256,7 +253,7 @@ int main(int argc, char *argv[])
 	{
 		// throw the menu output
 		printf("\n---------------------------------------------------------------------\n");
-		printf("Options: \n 1. START_QUESTION: starts the server process that runs with n choices. \n 2. END_QUESTION(): Terminates the server process; students can \n    no longer send responses. \n"); 
+		printf("Options: \n 1. START_SERVER: starts the server process that can connect to coordinator. \n 2. SET SERVER: Set the server address to attack \n    no longer send responses. \n"); 
 		printf(" 3. LIST: Lists students who sent answers.\n 4. Exit \n \n Enter you choice ");
 
 		// get the choice
@@ -272,9 +269,8 @@ int main(int argc, char *argv[])
 
 			//printf("\n\nSTARTING QUESTION\n\n");
 
-			// Create thread that handles socket
-			// this where the magic happens 
-			pthread_create(&pth,NULL,socketthread_handler,"processing...");
+			// Create thread that handles server socket
+			pthread_create(&socketth,NULL,socketthread_handler,"processing...");
 
 		}
 		else if (choice == 2)
