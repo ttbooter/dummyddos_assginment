@@ -86,15 +86,13 @@ void *processthread_handler(void *args)
 	FILE *fp;
 	
 	//reset the buffer for read
-	//bzero(buffer,256);
 	int n = recvfrom(newsockfdd,buffer,sizeof(buffer),0, &addr, &fromlen);
 	if (n < 0) error("ERROR writing to socket");
 
 	printf("%d", n);
 
 	//copy the choice to temp variable
-	address = malloc ( sizeof buffer );			
-	//strncpy(buffer, address, strlen(buffer) + 1);
+	address = malloc ( sizeof buffer );
 
 	// close the connection
 	close(newsockfdd);
@@ -107,7 +105,6 @@ void *processthread_handler(void *args)
 	struct sockaddr_in *tempaddr = (struct sockaddr_in *)&addr;
 	char ipAddress[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(tempaddr->sin_addr), ipAddress, INET_ADDRSTRLEN);
-
 
 	//lock for writing
 	pthread_mutex_lock(&lock);
@@ -200,7 +197,7 @@ int main(int argc, char *argv[])
 {
 	
 
-	pthread_t pth;	
+	pthread_t socketth;	
 
 	if (argc < 2) {
 	 fprintf(stderr,"ERROR, no port provided\n");
@@ -209,14 +206,10 @@ int main(int argc, char *argv[])
 	
 	/********init**************/
 	//socket init
-	int port = 5000;
+	int port;
+	sscanf(argv[1],"%d",&port);
 	socket_init(port);
 	/**************************/
-
-	//this just to clearout the file it exists at the start of program
-	FILE *fp;
-	fp = fopen("records.txt", "w+");
-	fclose(fp);
 
 	/**
 	* main loop that genrates the menu
@@ -225,8 +218,8 @@ int main(int argc, char *argv[])
 	{
 		// throw the menu output
 		printf("\n---------------------------------------------------------------------\n");
-		printf("Options: \n 1. START_QUESTION: starts the server process that runs with n choices. \n 2. END_QUESTION(): Terminates the server process; students can \n    no longer send responses. \n"); 
-		printf(" 3. LIST: Lists students who sent answers.\n 4. Exit \n \n Enter you choice ");
+		printf("Options: \n 1. START_SERVER: starts the server process. \n"); 
+		printf(" 2. CLOSE_SERVER: closes the server.\n 3. Exit \n \n Enter you choice ");
 
 		// get the choice
 		int tempcheck = scanf("%d", &choice);
@@ -234,34 +227,19 @@ int main(int argc, char *argv[])
 		// if choice is start question
 		if(choice == 1)
 		{					
-				
-			//printf(" Enter the number of choices ");
-			//tempcheck = scanf("%d", &options);	
-			//int i = 0;
-
-			//printf("\n\nSTARTING QUESTION\n\n");
-
 			// Create thread that handles socket
 			// this where the magic happens 
-			pthread_create(&pth,NULL,socketthread_handler,"processing...");
-
+			pthread_create(&socketth,NULL,socketthread_handler,"processing...");
 		}
 		else if (choice == 2)
 		{
 			//cancel the thread		
-			pthread_cancel(pth);
+			pthread_cancel(socketth);
 			//close the socketfile handler
 			close(newsockfd);
 			//close the socket
 			close(sockfd);
 		}	
-		else if (choice == 3)
-		{
-			//prints the name of students who answered
-			FILE* temp = fopen("records.txt","r");
-			printRecords(temp);
-			fclose(temp);
-		}
 		else
 		{
 			if(sockfd)

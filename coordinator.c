@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
 			}
 			goto start;
-		// enter choice
+		// notify the servers
 		case 3:
 			
 			for(i = 0; i < 4; i++){

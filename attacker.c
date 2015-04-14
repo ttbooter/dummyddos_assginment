@@ -63,15 +63,19 @@ static void timer_handler(int sig, siginfo_t *si, void *uc)
 	} 
 	else 
 	{
-		printf("Caught signal %d from timer\n", sig);
-
+		//For Debug
+		//printf("Caught signal %d from timer\n", sig);
+		
+		//delete the timer
 		timer_delete(timerid);
+
 		//close the socketfile handler
 		close(newsockfd);
+
 		//close the socket
 		close(sockfd);
-		// Create thread that handles socket
-		// this where the magic happens 
+
+		// Create thread that handles performs attack
 		pthread_create(&attackth,NULL,attackthread_handler,"processing...");
 		
 		//wait for any pending connections
@@ -109,11 +113,13 @@ void *attackthread_handler(void *args)
 	
 	//sleep so the connection stays active
 	sleep(15);			
-			
+	
+	//tell server that you are about to disconnect		
 	n = write(sockfd_cl,servername,strlen(servername));
 	if (n < 0) 
 	 error("ERROR writing to socket");
 
+	//close the socket
 	close(sockfd_cl);
 
 	return;
@@ -177,16 +183,10 @@ void *processthread_handler(void *args)
 		
 	// close the connection
 	close(newsockfdd);
-
-	//return;
 }
 
 
 /*********************Socket Server thread*******************/
-//THINGS TO DO:
-// 1. use args to set the port of server
-// DO NOT FORGET
-//
 void *socketthread_handler(void *arg)
 {
 	//try to bind the socket to specific address else throw error
@@ -298,7 +298,6 @@ int main(int argc, char *argv[])
 	//socket init
 	int port;
 	sscanf(argv[1],"%d",&port);
-	printf("Port %d",port);
 	socket_init(port);
 	/**************************/
 	
@@ -324,50 +323,5 @@ int main(int argc, char *argv[])
 	//wait for any pending connections
 	pthread_join( socketth , NULL);
 
-	/**
-	* main loop that genrates the menu
-	
-	while(1)
-	{
-		// throw the menu output
-		
-		printf(" 3. LIST: Lists students who sent answers.\n 4. Exit \n \n Enter you choice ");
-
-		// get the choice
-		int tempcheck = scanf("%d", &choice);
-
-		// if choice is start question
-		if(choice == 1)
-		{					
-				
-			//printf(" Enter the number of choices ");
-			//tempcheck = scanf("%d", &options);	
-			//int i = 0;
-
-			//printf("\n\nSTARTING QUESTION\n\n");
-
-			
-
-		}
-		else if (choice == 2)
-		{
-			//cancel the thread		
-			pthread_cancel(pth);
-			
-		}	
-		else if (choice == 3)
-		{
-			//prints the name of students who answered
-			FILE* temp = fopen("records.txt","r");
-			//printRecords(temp);
-			fclose(temp);
-		}
-		else
-		{
-			if(sockfd)
-				close(sockfd);
-			return 0;	
-		}	
-	}*/
 	return 0; 
 }
