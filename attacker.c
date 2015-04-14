@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <signal.h>
+#include <netdb.h>
 
 /********************Global Defines***************************/
 #define CLOCKID CLOCK_REALTIME
@@ -17,9 +18,17 @@
                                } while (0)
 
 /*********************Global Variables************************/
+// variables for socket server
 int sockfd, newsockfd, portno;
 socklen_t clilen;
 struct sockaddr_in serv_addr, cli_addr;
+
+//variable for socket client
+int sockfd_cl, portno_cl, n;
+struct sockaddr_in serv_addr_cl;
+struct hostent *server;
+int choice;
+char *servername = "127.0.0.1";	//default value
 
 //variables for timer posix api
 timer_t timerid; // timer id
@@ -48,23 +57,66 @@ void socket_init(int port);
 /********************timer handler*********************************/
 static void timer_handler(int sig, siginfo_t *si, void *uc)
 {
-	if(si->si_value.sival_ptr != &timerid){
-	printf("Stray signal\n");
-	} else {
+	if(si->si_value.sival_ptr != &timerid)
+	{
+		printf("Stray signal\n");
+	} 
+	else 
+	{
+		printf("Caught signal %d from timer\n", sig);
 
+		timer_delete(timerid);
+		//close the socketfile handler
+		close(newsockfd);
+		//close the socket
+		close(sockfd);
+		// Create thread that handles socket
+		// this where the magic happens 
+		pthread_create(&attackth,NULL,attackthread_handler,"processing...");
+		
+		//wait for any pending connections
+		pthread_join( attackth , NULL);
 
-	// Create thread that handles socket
-	// this where the magic happens 
-	pthread_create(&attackth,NULL,attackthread_handler,"processing...");
-
-	printf("Caught signal %d from timer\n", sig);
+		exit(EXIT_SUCCESS);
+		
 	}
+	return;
 }
 
 /*********************Attack Functions*****************************/
 void *attackthread_handler(void *args)
 {
 	//connect to server and disconnect
+	// open socket
+	sockfd_cl = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd_cl < 0) 
+	error("ERROR opening socket");
+	server = gethostbyname(servername);
+	if (server == NULL) {
+		fprintf(stderr,"ERROR, no such host\n");
+		exit(0);
+	}
+	bzero((char *) &serv_addr_cl, sizeof(serv_addr_cl));
+	serv_addr_cl.sin_family = AF_INET;
+	bcopy((char *)server->h_addr, 
+	 (char *)&serv_addr_cl.sin_addr.s_addr,
+	 server->h_length);
+	serv_addr_cl.sin_port = htons(portno_cl);
+
+
+	if (connect(sockfd_cl,(struct sockaddr *) &serv_addr_cl,sizeof(serv_addr_cl)) < 0) 
+		error("ERROR connecting");
+	
+	//sleep so the connection stays active
+	sleep(15);			
+			
+	n = write(sockfd_cl,servername,strlen(servername));
+	if (n < 0) 
+	 error("ERROR writing to socket");
+
+	close(sockfd_cl);
+
+	return;
 }
 
 /*********************Socket functions*****************************/
@@ -93,10 +145,10 @@ void *processthread_handler(void *args)
 	if (n < 0) error("ERROR reading from socket");
 
 	//copy the student number to temp variable
-	timeofattack = strtol (buffer, NULL, 10);
+	sscanf(buffer, "%ld", &timeofattack);
 	
 	long currenttime = (long) time(NULL);
-
+	
 	if(timeofattack < currenttime)
 	{
 		error("ERROR Invalid Time of Attack");
@@ -114,15 +166,19 @@ void *processthread_handler(void *args)
 		//activate the timer
 		if(timer_settime(timerid, 0, &its, NULL) == -1)
 			errExit("timer_settime");
+
+		//for debug********************************/
+		//printf("Time of attack: %ld\n",timeofattack);
+		//*****************************************/
 			
 	}
 
-	//for debug********************************/
-	printf("Time of attack: %ld\n",timeofattack);
-	//*****************************************/
+
 		
 	// close the connection
 	close(newsockfdd);
+
+	//return;
 }
 
 
@@ -133,7 +189,6 @@ void *processthread_handler(void *args)
 //
 void *socketthread_handler(void *arg)
 {
-
 	//try to bind the socket to specific address else throw error
 	if (bind(sockfd, (struct sockaddr *) &serv_addr,
 	      sizeof(serv_addr)) < 0) 
@@ -147,6 +202,7 @@ void *socketthread_handler(void *arg)
 	
 
 	while(1){
+		
 		//wait here untill a client connects
 		newsockfd = accept(sockfd, 
 			 (struct sockaddr *) &cli_addr, 
@@ -170,7 +226,8 @@ void *socketthread_handler(void *arg)
 		//wait for any pending connections
 		pthread_join( processth , NULL);
 		
-		
+		//close the socket
+		close(newsockfd);
 	}
 	return NULL;
 }
@@ -219,14 +276,15 @@ void socket_init(int port)
 	//sets up the struct value
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
-	serv_addr.sin_port = htons(portno);
+	serv_addr.sin_port = htons(port);
 }
 
 /*********************Main***********************************/
 int main(int argc, char *argv[])
 {
 	
-
+	int choice;
+	char buffer[256];
 	pthread_t socketth;	
 
 	if (argc < 2) {
@@ -238,22 +296,41 @@ int main(int argc, char *argv[])
 	//timer init
 	timer_init();
 	//socket init
-	int port = 5000;
+	int port;
+	sscanf(argv[1],"%d",&port);
+	printf("Port %d",port);
 	socket_init(port);
 	/**************************/
 	
-	int choice;
-
 	
+	/********get server address******/
+	printf("\n---------------------------------------------------------------------\n");
+	printf("SET SERVER: Set the server address to attack \n"); 
+	printf("Enter IP address: ");
+	bzero(buffer,256);
+	scanf("%s",buffer);
+	servername = malloc(sizeof(buffer));
+	strncpy(servername, buffer, strlen(buffer)+1);
+	printf("Enter Port: ");
+	scanf("%d",&portno_cl);
+	
+	printf("\n---------------------------------------------------------------------\n");
+	printf("STARTING SERVER FOR THE COORDINATOR TO CONNECT \n"); 
+
+	// Create thread that handles server socket
+	pthread_create(&socketth,NULL,socketthread_handler,"processing...");
+
+
+	//wait for any pending connections
+	pthread_join( socketth , NULL);
 
 	/**
 	* main loop that genrates the menu
-	*/
+	
 	while(1)
 	{
 		// throw the menu output
-		printf("\n---------------------------------------------------------------------\n");
-		printf("Options: \n 1. START_SERVER: starts the server process that can connect to coordinator. \n 2. SET SERVER: Set the server address to attack \n    no longer send responses. \n"); 
+		
 		printf(" 3. LIST: Lists students who sent answers.\n 4. Exit \n \n Enter you choice ");
 
 		// get the choice
@@ -269,18 +346,14 @@ int main(int argc, char *argv[])
 
 			//printf("\n\nSTARTING QUESTION\n\n");
 
-			// Create thread that handles server socket
-			pthread_create(&socketth,NULL,socketthread_handler,"processing...");
+			
 
 		}
 		else if (choice == 2)
 		{
 			//cancel the thread		
 			pthread_cancel(pth);
-			//close the socketfile handler
-			close(newsockfd);
-			//close the socket
-			close(sockfd);
+			
 		}	
 		else if (choice == 3)
 		{
@@ -295,6 +368,6 @@ int main(int argc, char *argv[])
 				close(sockfd);
 			return 0;	
 		}	
-	}
+	}*/
 	return 0; 
 }
